@@ -2,14 +2,14 @@ version: "3"
 
 services:
   backend:
-    #    env_file:
-    #      - path: ./backend/.env
-    #        required: false
+    # env_file:
+    #   - path: ./backend/.env
+    # required: false
     build:
       context: ./backend
       dockerfile: Dockerfile
     volumes:
-      - ./backend:/app
+      - backend-code:/code
     environment:
       - NEO4J_URI=${NEO4J_URI-neo4j://database:7687}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD-password}
@@ -36,7 +36,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     volumes:
-      - ./frontend:/app
+      - frontend-code:/app
       - /app/node_modules
     environment:
       - BACKEND_API_URL=${BACKEND_API_URL}
@@ -47,6 +47,10 @@ services:
       - "8080:8080"
     networks:
       - net
+
+volumes:
+  backend-code:
+  frontend-code:
 
 networks:
   net:

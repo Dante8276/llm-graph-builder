@@ -1,34 +1,32 @@
 from langchain_community.graphs import Neo4jGraph
-from dotenv import load_dotenv
+import os
+from dotenv import load_dotenv 
+from langchain_community.graphs.graph_document import (
+    Node as BaseNode,
+    Relationship as BaseRelationship,
+    GraphDocument,
+)
 from langchain.schema import Document
-import json
+from typing import List, Optional
+from langchain.pydantic_v1 import Field, BaseModel
+from langchain.chains.openai_functions import (
+    create_openai_fn_chain,
+    create_structured_output_chain,
+)
+from langchain_openai import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
+from datetime import datetime
 import logging
 import re
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
+import threading
+import uuid
 #from langchain_experimental.graph_transformers import LLMGraphTransformer
-from langchain_google_vertexai import ChatVertexAI
-import vertexai
-from typing import Any, List, Optional, Sequence
-from langchain_community.graphs.graph_document import GraphDocument, Node, Relationship
-from langchain_core.documents import Document
-from langchain_core.language_models import BaseLanguageModel
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.pydantic_v1 import BaseModel, Field
-from langchain.pydantic_v1 import BaseModel
-from langchain_google_vertexai import ChatVertexAI
-from langchain_core.prompts import ChatPromptTemplate
-from typing import List, Dict
-from langchain_core.pydantic_v1 import BaseModel, Field
-import google.auth 
-from langchain_community.graphs.graph_document import Node
 from src.shared.common_fn import get_combined_chunks
-import time
-from langchain_google_vertexai import HarmBlockThreshold, HarmCategory
 
 load_dotenv()
-logging.basicConfig(format='%(asctime)s - %(message)s',level='DEBUG')
+logging.basicConfig(format='%(asctime)s - %(message)s',level='INFO')
 
 import asyncio
 import json
@@ -456,84 +454,30 @@ class LLMGraphTransformer:
             for document in documents
         ]
         results = await asyncio.gather(*tasks)
-        return results   
+        return results
 
-def get_graph_from_Gemini(model_version,
-                            graph: Neo4jGraph,
-                            chunkId_chunkDoc_list: List, 
-                            allowedNodes, 
-                            allowedRelationship):
-    """
-        Extract graph from OpenAI and store it in database. 
-        This is a wrapper for extract_and_store_graph
-                                
-        Args:
-            model_version : identify the model of LLM
-            graph: Neo4jGraph to be extracted.
-            chunks: List of chunk documents created from input file
-        Returns: 
-            List of langchain GraphDocument - used to generate graph
-    """
-    logging.info(f"Get graphDocuments from {model_version}")
-    futures = []
-    graph_document_list = []
-    lst_chunk_chunkId_document=[]
-    location = "us-central1"
-    #project_id = "llm-experiments-387609"                            
-    credentials, project_id = google.auth.default()
-    if hasattr(credentials, "service_account_email"):
-      logging.info(credentials.service_account_email)
-    else:
-        logging.info("WARNING: no service account credential. User account credential?")                           
-    vertexai.init(project=project_id, location=location)
-    
+
+def get_graph_from_OpenAI(model_version, graph, chunkId_chunkDoc_list, allowedNodes, allowedRelationship):
+    futures=[]
+    graph_document_list=[]
+        
     combined_chunk_document_list = get_combined_chunks(chunkId_chunkDoc_list)
-     
-    llm = ChatVertexAI(model_name=model_version,
-                    convert_system_message_to_human=True,
-                    temperature=0,
-                    safety_settings={
-                        HarmCategory.HARM_CATEGORY_UNSPECIFIED: HarmBlockThreshold.BLOCK_NONE, 
-                        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE, 
-                        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE, 
-                        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE, 
-                        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                    }
-                )
+    
+    llm = ChatOpenAI(model= model_version, temperature=0)
     llm_transformer = LLMGraphTransformer(llm=llm, allowed_nodes=allowedNodes, allowed_relationships=allowedRelationship)
     
     with ThreadPoolExecutor(max_workers=10) as executor:
         for chunk in combined_chunk_document_list:
-            chunk_doc = Document(page_content= chunk.page_content.encode("utf-8"), metadata=chunk.metadata)
-            futures.append(executor.submit(llm_transformer.convert_to_graph_documents,[chunk_doc]))   
+            futures.append(executor.submit(llm_transformer.convert_to_graph_documents,[chunk]))   
         
         for i, future in enumerate(concurrent.futures.as_completed(futures)):
             graph_document = future.result()
-            # unique_nodes=set()
-            # for single_rel in graph_document[0].relationships:
-            #     unique_nodes.add((single_rel.source.id, single_rel.source.type))
-            #     unique_nodes.add((single_rel.target.id, single_rel.target.type))  
-                
-            # nodes = [Node(id=id, type=type) for id,type in unique_nodes]        
-            # graph_document[0].nodes=list(nodes)
-
 #            for node in graph_document[0].nodes:
-#               node.id = node.id.title().replace(' ','_')
-#                # replace all non alphanumeric characters and spaces with underscore
-#               node.type = re.sub(r'[^\w]+', '_', node.type.capitalize())
-            graph_document_list.append(graph_document[0])
-            
-            #Sleep for 1 sec after 4 requestes are processed. 
-            # Todo: Remove this code block when Gemini rate limit is increased 
-            # if i % 4 == 0 :
-            #     time.sleep(1)
+#                node.id = node.id.title().replace(' ','_')
+#                #replace all non alphanumeric characters and spaces with underscore
+#                node.type = re.sub(r'[^\w]+', '_', node.type.capitalize())
+            graph_document_list.append(graph_document[0])    
+    return  graph_document_list        
         
-    return  graph_document_list
-
-
-def get_graph_from_AWS(model_version,
-                            graph: Neo4jGraph,
-                            chunkId_chunkDoc_list: List, 
-                            allowedNodes, 
-                            allowedRelationship):
-    return
+    
+    
