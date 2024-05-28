@@ -1,4 +1,5 @@
 from src.aws_llm import get_graph_from_aws
+from src.groq_llm import get_graph_from_groq
 from langchain_community.graphs import Neo4jGraph
 from src.diffbot_transformer import get_graph_from_diffbot
 from src.openAI_llm import get_graph_from_OpenAI
@@ -12,6 +13,7 @@ logging.basicConfig(format="%(asctime)s - %(message)s", level="INFO")
 
 def generate_graphDocuments(model: str, graph: Neo4jGraph, chunkId_chunkDoc_list: List, allowedNodes, allowedRelationship):
     
+    
     if  allowedNodes is None or allowedNodes=="":
         allowedNodes =[]
     else:
@@ -20,10 +22,13 @@ def generate_graphDocuments(model: str, graph: Neo4jGraph, chunkId_chunkDoc_list
         allowedRelationship=[]
     else:
         allowedRelationship = allowedRelationship.split(',')
+        
+    model_version = os.environ.get('GROQ_MODEL_ID')
     
     logging.info(f"allowedNodes: {allowedNodes}, allowedRelationship: {allowedRelationship}")
 
-    
+    model = os.environ.get('MODEL_SOURCE')
+    print(f'generating graph documents from {model} and {model_version}')
     if model == "Diffbot":
         graph_documents = get_graph_from_diffbot(graph, chunkId_chunkDoc_list)
 
@@ -44,14 +49,19 @@ def generate_graphDocuments(model: str, graph: Neo4jGraph, chunkId_chunkDoc_list
         graph_documents = get_graph_from_Gemini(model_version, graph, chunkId_chunkDoc_list, allowedNodes, allowedRelationship)
     
     elif model == "AWS":
-        model_id = os.environ.get('BEDROCK_MODEL_ID')
+        
         model_kwargs = {
             "temperature": 0,
             # "maxTokenCount": 1000,
             # "topP": 0.9,
             # "stopSequences": []
         }
-        graph_documents = get_graph_from_aws(model_id, model_kwargs, chunkId_chunkDoc_list, allowedNodes, allowedRelationship)
+        graph_documents = get_graph_from_aws(model_version, model_kwargs, chunkId_chunkDoc_list, allowedNodes, allowedRelationship)
+        
+    elif model == "Groq":
+        # model_version = os.environ.get('GROQ_MODEL_ID')
+        graph_documents = get_graph_from_groq(model_version, chunkId_chunkDoc_list, allowedNodes, allowedRelationship)
+        
     
 
     logging.info(f"graph_documents = {len(graph_documents)}")

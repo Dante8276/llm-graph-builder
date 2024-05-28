@@ -70,6 +70,7 @@ kiwisolver==1.4.5
 langchain
 langchainhub
 langchain-aws
+langchain-groq
 langchain-anthropic 
 langchain-google-genai
 langchain-community

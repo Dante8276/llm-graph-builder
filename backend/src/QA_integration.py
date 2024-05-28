@@ -1,5 +1,6 @@
 from langchain_aws import ChatBedrock
 from langchain_community.vectorstores.neo4j_vector import Neo4jVector
+from langchain_groq import ChatGroq
 from langchain.chains import GraphCypherQAChain
 from langchain.graphs import Neo4jGraph
 import os
@@ -77,7 +78,7 @@ Ensure that answers are straightforward and context-aware, focusing on being rel
 
 def get_llm(model: str,max_tokens=1000) -> Any:
     """Retrieve the specified language model based on the model name."""
-
+    model = os.environ.get('MODEL_SOURCE')
     model_versions = {
         "OpenAI GPT 3.5": "gpt-3.5-turbo-16k",
         "Gemini Pro": "gemini-1.0-pro-001",
@@ -85,7 +86,8 @@ def get_llm(model: str,max_tokens=1000) -> Any:
         "OpenAI GPT 4": "gpt-4-0125-preview",
         "Diffbot" : "gpt-4-0125-preview",
         "OpenAI GPT 4o":"gpt-4o",
-        "AWS" : os.environ.get('BEDROCK_MODEL_ID')
+        "AWS" : os.environ.get('BEDROCK_MODEL_ID'),
+        "Groq" : os.environ.get('GROQ_MODEL_ID')
          }
 
     if model in model_versions:
@@ -109,6 +111,8 @@ def get_llm(model: str,max_tokens=1000) -> Any:
         elif "AWS" in model:
             model_kwargs = {"temperature": 0}
             llm = ChatBedrock(model_id=model_version, model_kwargs=model_kwargs)
+        elif "Groq" in model:
+            llm = ChatGroq(temperature=0, model_name=model_version)
         else:
             llm = ChatOpenAI(model=model_version, temperature=0,max_tokens=max_tokens)
 
